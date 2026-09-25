@@ -1,7 +1,7 @@
-import { state, processStageApproval } from '../prototype.js?v=1.1';
+import { state, processStageApproval, revokeStageApproval } from '../prototype.js';
 
 export async function renderDiscoveryStage(mainContainer, hitlContainer) {
-  let isProfileRun = state.stageApprovals['02_discovery']; // Already profiled if previously approved
+  let isProfileRun = state.stageApprovals['02_discovery'];
 
   function renderView() {
     const isApproved = state.stageApprovals['02_discovery'];
@@ -53,13 +53,12 @@ export async function renderDiscoveryStage(mainContainer, hitlContainer) {
         ` : `
           <div class="placeholder-box">
             <p><b>Profiling Pending</b></p>
-            <p class="sub-text">Click "▶ Run Discovery Agent Profiling" above to profile source extracts and discover entity schemas.</p>
+            <p class="sub-text">Click "▶ Run Discovery Agent Profiling" above to profile source extracts and discover entity schemas[cite: 8, 10].</p>
           </div>
         `}
       </div>
     `;
 
-    // Render HITL Side Panel
     hitlContainer.innerHTML = `
       <div class="gatecard ${isApproved ? 'approved-card' : ''}">
         <h3>HITL Gate · Discovery Approval</h3>
@@ -77,13 +76,15 @@ export async function renderDiscoveryStage(mainContainer, hitlContainer) {
       </button>
     `;
 
-    // Bind Profiling Trigger Event
-    document.getElementById('runDiscoveryBtn').addEventListener('click', () => {
+    // Re-profiling revokes approval[cite: 2, 8, 12]
+    document.getElementById('runDiscoveryBtn').addEventListener('click', async () => {
       isProfileRun = true;
+      if (state.stageApprovals['02_discovery']) {
+        await revokeStageApproval('02_discovery');
+      }
       renderView();
     });
 
-    // Bind Approval & Automatic Stage Progression
     if (isProfileRun || isApproved) {
       document.getElementById('approveDiscoveryBtn').addEventListener('click', async () => {
         await processStageApproval('02_discovery');

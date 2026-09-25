@@ -1,11 +1,13 @@
-import { state } from '../prototype.js';
+import { state, processStageApproval } from '../prototype.js';
 
 export async function renderReconciliationStage(mainContainer, hitlContainer) {
+  const isApproved = state.stageApprovals['06_reconcile'];
+
   mainContainer.innerHTML = `
     <div class="stagehead">
       <div class="eyebrow">Data Plane · Stage 06</div>
       <h2>Financial Reconciliation Agent</h2>
-      <p>Independent audit comparing source extracts against loaded target entities to verify AUM, position counts, and drift tolerances[cite: 8, 10].</p>
+      <p>Independent audit comparing source extracts against loaded target entities to verify AUM, position counts, and drift tolerances.</p>
     </div>
 
     <button id="runReconciliationBtn" class="run-pipeline-btn">▶ Run Financial & Population Reconciliation</button>
@@ -15,18 +17,19 @@ export async function renderReconciliationStage(mainContainer, hitlContainer) {
     </div>
   `;
 
-  // Render HITL Side Panel
   hitlContainer.innerHTML = `
-    <div class="gatecard">
+    <div class="gatecard ${isApproved ? 'approved-card' : ''}">
       <h3>HITL Gate · Final Reconciliation</h3>
-      <p>Authorized: <b>Validation Specialist</b>[cite: 8, 12]</p>
+      <p>Authorized: <b>Validation Specialist</b></p>
     </div>
     <div class="stat-list">
       <div class="stat"><span>Drift Tolerance:</span> <b>±0.05%</b></div>
       <div class="stat"><span>AUM Variance:</span> <b id="hitlAumVariance">$0.00</b></div>
-      <div class="stat"><span>Reconciliation Status:</span> <b id="hitlReconStatus">PENDING</b></div>
+      <div class="stat"><span>Reconciliation Status:</span> <b id="hitlReconStatus">${isApproved ? 'MATCHED' : 'PENDING'}</b></div>
     </div>
-    <button id="finalSignOffBtn" class="approve-btn">Final Sign-Off (Mark LOAD_READY)</button>
+    <button id="finalSignOffBtn" class="approve-btn ${isApproved ? 'btn-approved' : ''}">
+      ${isApproved ? '✓ Final Sign-Off Complete (LOAD_READY)' : 'Final Sign-Off (Mark LOAD_READY)'}
+    </button>
   `;
 
   document.getElementById('runReconciliationBtn').addEventListener('click', () => {
@@ -67,19 +70,6 @@ export async function renderReconciliationStage(mainContainer, hitlContainer) {
   });
 
   document.getElementById('finalSignOffBtn').addEventListener('click', async () => {
-    const res = await fetch('/api/runs/run-demo-001/approvals', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        stage: 'FINAL_APPROVAL',
-        decision: 'APPROVED',
-        reviewer: state.currentUser || 'Marcus (Specialist)',
-        comments: 'Financial reconciliation passed with 0 variance. Run is LOAD_READY.'
-      })
-    });
-
-    if (res.ok) {
-      alert('Migration Run Signed Off & Marked LOAD_READY! Ready for production cutover.');
-    }
+    await processStageApproval('06_reconcile');
   });
 }

@@ -1,9 +1,8 @@
-import { state, processStageApproval } from '../prototype.js';
+import { state, processStageApproval, revokeStageApproval } from '../prototype.js';
 
 export async function renderIngestionStage(mainContainer, hitlContainer) {
-  let mode = 'cloud'; // 'cloud' or 'local'
+  let mode = 'cloud';
 
-  // Raw source extract entities only (Target Contract managed in Stage 00 Setup)[cite: 1, 2, 7]
   const sourceEntities = [
     { id: 'morningstar_accounts', label: 'Morningstar Accounts', file: 'morningstar_accounts.csv', entity: 'Account' },
     { id: 'fidelity_positions', label: 'Fidelity Positions', file: 'fidelity_positions.psv', entity: 'Position' },
@@ -20,7 +19,6 @@ export async function renderIngestionStage(mainContainer, hitlContainer) {
         <p>Ingest raw extracts from Cloud Storage (ADLS Gen2 / AWS) or local file uploads[cite: 1, 8, 10].</p>
       </div>
 
-      <!-- Storage Strategy Toggle -->
       <div class="toggle-mode-bar">
         <span class="toggle-label">STORAGE SOURCE:</span>
         <button id="modeCloudBtn" class="toggle-btn ${mode === 'cloud' ? 'active' : ''}">☁ Cloud Storage (ADLS / AWS)</button>
@@ -46,7 +44,6 @@ export async function renderIngestionStage(mainContainer, hitlContainer) {
           `).join('')}
         </div>
       ` : `
-        <!-- Multi-Entity Source Extract Upload Cards -->
         <div class="multi-upload-grid">
           ${sourceEntities.map(item => `
             <div class="local-upload-card" id="card-${item.id}">
@@ -78,7 +75,7 @@ export async function renderIngestionStage(mainContainer, hitlContainer) {
     hitlContainer.innerHTML = `
       <div class="gatecard ${isApproved ? 'approved-card' : ''}">
         <h3>HITL Gate · Stage 01 Approval</h3>
-        <p>Authorized: <b>Migration Analyst</b></p>
+        <p>Authorized: <b>Migration Analyst</b>[cite: 8, 12]</p>
       </div>
       <div class="stat-list">
         <div class="stat"><span>Ingestion Mode:</span> <b>${mode.toUpperCase()}</b></div>
@@ -91,11 +88,9 @@ export async function renderIngestionStage(mainContainer, hitlContainer) {
       </button>
     `;
 
-    // Bind Storage Toggle Events
     document.getElementById('modeCloudBtn').addEventListener('click', () => { mode = 'cloud'; renderView(); });
     document.getElementById('modeLocalBtn').addEventListener('click', () => { mode = 'local'; renderView(); });
 
-    // Local Upload Event Handlers
     if (mode === 'local') {
       mainContainer.querySelectorAll('.btn-upload-trigger').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -124,6 +119,11 @@ export async function renderIngestionStage(mainContainer, hitlContainer) {
               statusEl.innerHTML = `
                 <span class="status-pill ok">✓ Stored: ${data.filename} (${data.sizeBytes} B)</span>
               `;
+
+              // File upload triggers approval revocation[cite: 2, 8, 12]
+              if (state.stageApprovals['01_ingestion']) {
+                await revokeStageApproval('01_ingestion');
+              }
             }
           };
 
@@ -132,7 +132,6 @@ export async function renderIngestionStage(mainContainer, hitlContainer) {
       });
     }
 
-    // Ingestion Execution
     document.getElementById('runIngestionBtn').addEventListener('click', () => {
       document.getElementById('ingestionResults').innerHTML = `
         <div class="results-card">
@@ -151,7 +150,6 @@ export async function renderIngestionStage(mainContainer, hitlContainer) {
       `;
     });
 
-    // Approval Trigger & Auto Progression to Stage 02
     document.getElementById('approveIngestionBtn').addEventListener('click', async () => {
       await processStageApproval('01_ingestion');
     });

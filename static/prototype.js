@@ -1,13 +1,13 @@
-import { renderLogin } from './components/login.js?v=1.2';
-import { renderRoleSelection } from './components/role-selection.js?v=1.2';
-import { renderSidebar, applyPersonaPermissions } from './components/workspace-shell.js?v=1.2';
-import { renderMigrationSetupStage } from './components/migration-setup.js?v=1.2';
-import { renderIngestionStage } from './components/ingestion.js?v=1.2';
-import { renderDiscoveryStage } from './components/discovery.js?v=1.2';
-import { renderRulebookEditor } from './components/rulebook-editor.js?v=1.2';
-import { renderRuleEditor } from './components/rule-editor.js?v=1.2';
-import { renderExecutionStage } from './components/execution.js?v=1.2';
-import { renderReconciliationStage } from './components/reconciliation.js?v=1.2';
+import { renderLogin } from './components/login.js';
+import { renderRoleSelection } from './components/role-selection.js';
+import { renderSidebar, applyPersonaPermissions } from './components/workspace-shell.js';
+import { renderMigrationSetupStage } from './components/migration-setup.js';
+import { renderIngestionStage } from './components/ingestion.js';
+import { renderDiscoveryStage } from './components/discovery.js';
+import { renderRulebookEditor } from './components/rulebook-editor.js';
+import { renderRuleEditor } from './components/rule-editor.js';
+import { renderExecutionStage } from './components/execution.js';
+import { renderReconciliationStage } from './components/reconciliation.js';
 
 export const state = {
   currentUser: null,
@@ -16,6 +16,7 @@ export const state = {
   migrationId: 'morningstar-multicustodian',
   runId: 'run-morningstar-multicustodian',
   rulebookParsed: null,
+  selectedKnowledgeAssets: ['source_profile', 'file_contracts', 'mapping_set', 'markdown_rulebook', 'validation_rules'],
   stageApprovals: {
     '00_setup': true,
     '01_ingestion': false,
@@ -24,7 +25,8 @@ export const state = {
     '04_mapper': false,
     '05_execute': false,
     '06_reconcile': false
-  }
+  },
+  columnApprovals: {}
 };
 
 const STAGE_ORDER = [
@@ -61,6 +63,16 @@ async function onPersonaSelected(persona) {
 }
 
 export async function syncApprovalsFromBackend() {
+  state.stageApprovals = {
+    '00_setup': true,
+    '01_ingestion': false,
+    '02_discovery': false,
+    '03_rules': false,
+    '04_mapper': false,
+    '05_execute': false,
+    '06_reconcile': false
+  };
+
   try {
     const res = await fetch(`/api/runs/${state.runId}/approvals`);
     if (res.ok) {
@@ -86,7 +98,6 @@ export function initWorkspace() {
 export async function navigateToStage(stageId) {
   state.activeStage = stageId;
   
-  // Re-sync approvals from DB before rendering stage to guarantee badge persistence
   await syncApprovalsFromBackend();
   renderSidebar(document.getElementById('sidebar'), state);
   
@@ -125,6 +136,11 @@ export async function processStageApproval(stageId) {
     state.stageApprovals[stageId] = true;
     await syncApprovalsFromBackend();
 
+    if (state.currentPersona === 'MA' && stageId === '04_mapper') {
+      await navigateToStage('04_mapper');
+      return;
+    }
+
     const currentIndex = STAGE_ORDER.indexOf(stageId);
     const nextStageId = (currentIndex >= 0 && currentIndex < STAGE_ORDER.length - 1) 
       ? STAGE_ORDER[currentIndex + 1] 
@@ -135,6 +151,17 @@ export async function processStageApproval(stageId) {
     } else {
       renderSidebar(document.getElementById('sidebar'), state);
     }
+  }
+}
+
+export async function revokeStageApproval(stageId) {
+  try {
+    await fetch(`/api/runs/${state.runId}/approvals/${stageId}`, { method: 'DELETE' });
+    state.stageApprovals[stageId] = false;
+    await syncApprovalsFromBackend();
+    renderSidebar(document.getElementById('sidebar'), state);
+  } catch (err) {
+    console.warn('Failed to revoke approval on edit', err);
   }
 }
 

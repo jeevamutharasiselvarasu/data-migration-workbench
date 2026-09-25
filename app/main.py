@@ -69,8 +69,7 @@ def create_migration(req: CreateMigrationRequest):
         """, (migration_id, req.name, req.category, req.description, req.sourceSystem, req.targetSystem,
               json.dumps(req.entities), req.templateId, req.createdBy, created_utc))
 
-    # Initialize a default run for this migration if none exists
-    run_id = f"run-{migration_id}"
+    run_id = f"run-{req.createdBy.lower().replace(' ', '') if req.createdBy else 'user'}-{migration_id}"
     run_existing = cursor.execute("SELECT id FROM runs WHERE id = ?", (run_id,)).fetchone()
     if not run_existing:
         cursor.execute("""
@@ -141,9 +140,6 @@ async def upload_local_source_file(
     entity: str = Form(...),
     file: UploadFile = File(...)
 ):
-    """
-    Saves a locally uploaded file into the RAW storage layer for a run.
-    """
     content = await file.read()
     rel_path, sha256, size_bytes = HybridStorageManager.save_file(
         run_id=run_id,
@@ -176,11 +172,10 @@ async def upload_local_source_file(
     }
 
 
-# --- SINGLE RULE RERUN, APPROVALS & RUN STATE ---
+# --- APPROVAL MANAGEMENT & REVOCATION ---
 
 @app.get("/api/runs/{run_id}/approvals")
 def get_run_approvals(run_id: str):
-    """Returns all recorded approvals for a run[cite: 2]."""
     conn = get_db_connection()
     cursor = conn.cursor()
     rows = cursor.execute("SELECT stage, decision, reviewer, comments, created_utc FROM approvals WHERE run_id = ?", (run_id,)).fetchall()
@@ -194,20 +189,17 @@ def get_run_approvals(run_id: str):
 
 @app.post("/api/runs/{run_id}/approvals")
 def record_approval(run_id: str, req: ApprovalRequest):
-    """Records persona decisions and updates stage approval status in DB[cite: 2, 8, 12, 13]."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
     approval_id = f"appr-{uuid.uuid4().hex[:8]}"
     created_utc = datetime.now(timezone.utc).isoformat()
 
-    # Record or update approval decision
     cursor.execute("""
         INSERT INTO approvals (id, run_id, artifact_id, stage, decision, reviewer, comments, created_utc)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, (approval_id, run_id, req.artifactId, req.stage, req.decision, req.reviewer, req.comments, created_utc))
 
-    # Update state machine based on stage approval
     if req.decision == "APPROVED":
         if req.stage in ["FINAL_APPROVAL", "06_reconcile"]:
             cursor.execute("UPDATE runs SET status = 'LOAD_READY', updated_utc = ? WHERE id = ?", (created_utc, run_id))
@@ -218,6 +210,36 @@ def record_approval(run_id: str, req: ApprovalRequest):
     conn.close()
 
     return {"approvalId": approval_id, "stage": req.stage, "status": req.decision, "reviewer": req.reviewer}
+
+
+@app.delete("/api/runs/{run_id}/approvals/{stage}")
+def revoke_approval(run_id: str, stage: str):
+    """
+    Revokes approval for a specific stage and all downstream stages when edits occur.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    stages_cascade = {
+        "00_setup": ["00_setup", "01_ingestion", "02_discovery", "03_rules", "04_mapper", "05_execute", "06_reconcile"],
+        "01_ingestion": ["01_ingestion", "02_discovery", "03_rules", "04_mapper", "05_execute", "06_reconcile"],
+        "02_discovery": ["02_discovery", "03_rules", "04_mapper", "05_execute", "06_reconcile"],
+        "03_rules": ["03_rules", "04_mapper", "05_execute", "06_reconcile"],
+        "04_mapper": ["04_mapper", "05_execute", "06_reconcile"],
+        "05_execute": ["05_execute", "06_reconcile"],
+        "06_reconcile": ["06_reconcile"]
+    }
+
+    target_stages = stages_cascade.get(stage, [stage])
+    placeholders = ",".join(["?"] * len(target_stages))
+
+    cursor.execute(f"DELETE FROM approvals WHERE run_id = ? AND stage IN ({placeholders})", [run_id] + target_stages)
+    cursor.execute("UPDATE runs SET status = 'DRAFT' WHERE id = ?", (run_id,))
+
+    conn.commit()
+    conn.close()
+
+    return {"runId": run_id, "revokedStages": target_stages, "status": "REVOKED"}
 
 
 @app.post("/api/runs/{run_id}/rerun-rule")
@@ -247,9 +269,6 @@ def rerun_single_rule(run_id: str, req: RuleRerunRequest):
 
 @app.get("/api/runs/{run_id}/export-package")
 def export_package(run_id: str, mode: str = Query("local", description="local or adls")):
-    """
-    Generates and exports full ANSI transformation SQL for all compiled entity rules[cite: 1, 7, 8, 10].
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -261,7 +280,6 @@ def export_package(run_id: str, mode: str = Query("local", description="local or
     parsed = RulebookCompiler.parse_markdown(content)
     conn.close()
 
-    # Generate full ANSI SQL queries for all entity rules[cite: 1, 7]
     utc_now = datetime.now(timezone.utc).isoformat()
     sql_lines = [
         f"-- ====================================================================",
@@ -272,7 +290,6 @@ def export_package(run_id: str, mode: str = Query("local", description="local or
         f"-- ====================================================================\n"
     ]
 
-    # Group rules by Entity
     rules_by_entity = {}
     for r in parsed.get("fieldRules", []):
         ent = r["entity"]
@@ -280,11 +297,8 @@ def export_package(run_id: str, mode: str = Query("local", description="local or
             rules_by_entity[ent] = []
         rules_by_entity[ent].append(r)
 
-    # Build SQL Views per Entity
     for ent, rules in rules_by_entity.items():
-        sql_lines.append(f"-- --------------------------------------------------------------------")
         sql_lines.append(f"-- Entity Transformation View: stg_{ent.lower()}")
-        sql_lines.append(f"-- --------------------------------------------------------------------")
         sql_lines.append(f"CREATE OR REPLACE VIEW stg_{ent.lower()} AS")
         sql_lines.append("SELECT")
         
@@ -295,7 +309,6 @@ def export_package(run_id: str, mode: str = Query("local", description="local or
             target_field = r["targetField"]
             expr = r["expression"]
 
-            # Parse expression types safely[cite: 1]
             if "PERIOD_START" in expr:
                 inner_var = expr.replace("PERIOD_START({{", "").replace("}})", "").replace("PERIOD_START(", "").replace(")", "")
                 sql_expr = f"    DATE_TRUNC('month', CAST({inner_var} AS DATE)) AS {target_field}"
@@ -303,25 +316,12 @@ def export_package(run_id: str, mode: str = Query("local", description="local or
                 var_name = expr.replace("{{", "").replace("}}", "").strip()
                 sql_expr = f"    CAST({var_name} AS VARCHAR) AS {target_field}"
             else:
-                sql_expr = f"    '{expr}' AS {target_field}"
+                sql_expr = f"    {expr} AS {target_field}"
                 
             select_exprs.append(sql_expr)
 
         sql_lines.append(",\n".join(select_exprs))
         sql_lines.append(f"FROM {source_file.replace('.csv', '').replace('.psv', '')};\n")
-
-    # Add Value Crosswalk Logic
-    if parsed.get("crosswalks"):
-        sql_lines.append("-- --------------------------------------------------------------------")
-        sql_lines.append("-- Value Crosswalk Maps")
-        sql_lines.append("-- --------------------------------------------------------------------")
-        for cw in parsed["crosswalks"]:
-            sql_lines.append(f"-- Crosswalk: {cw['sourceFile']} -> {cw['targetField']}")
-            case_stmt = ["CASE"]
-            for src_val, tgt_val in cw["mappings"].items():
-                case_stmt.append(f"    WHEN {cw['targetField']} = '{src_val}' THEN '{tgt_val}'")
-            case_stmt.append(f"    ELSE {cw['targetField']}\nEND AS {cw['targetField']}_mapped;")
-            sql_lines.append("\n".join(case_stmt) + "\n")
 
     full_sql = "\n".join(sql_lines)
 

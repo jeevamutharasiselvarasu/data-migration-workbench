@@ -1,10 +1,9 @@
-import { state, processStageApproval } from '../prototype.js?v=1.1';
+import { state, processStageApproval, revokeStageApproval } from '../prototype.js';
 
 export async function renderRulebookEditor(mainContainer, hitlContainer, appState) {
   let isCompiled = false;
   const isApproved = state.stageApprovals['03_rules'];
 
-  // Fetch active rulebook from FastAPI backend
   const response = await fetch(`/api/migrations/${appState.migrationId}/rulebook`);
   const data = await response.json();
   appState.rulebookParsed = data.parsed;
@@ -38,11 +37,10 @@ export async function renderRulebookEditor(mainContainer, hitlContainer, appStat
       </div>
     `;
 
-    // Render HITL Side Panel for Stage 03
     hitlContainer.innerHTML = `
       <div class="gatecard ${isApprovedNow ? 'approved-card' : ''}">
         <h3>HITL Gate · Rulebook Review</h3>
-        <p>Authorized: <b>Migration Analyst</b></p>
+        <p>Authorized: <b>Migration Analyst</b>[cite: 8, 12]</p>
       </div>
       <div class="stat-list">
         <div class="stat"><span>Field Rules:</span> <b id="statFieldRules">${data.parsed.fieldRules.length}</b></div>
@@ -57,7 +55,7 @@ export async function renderRulebookEditor(mainContainer, hitlContainer, appStat
       </button>
     `;
 
-    // Bind Save & Compile Event without native alert() popups
+    // Save & Compile Event -> Revokes downstream approvals
     document.getElementById('saveRulebookBtn').addEventListener('click', async () => {
       const updatedContent = document.getElementById('rulebookMarkdownText').value;
       const putRes = await fetch(`/api/migrations/${appState.migrationId}/rulebook`, {
@@ -73,11 +71,15 @@ export async function renderRulebookEditor(mainContainer, hitlContainer, appStat
         data.parsed = resData.parsed;
         isCompiled = true;
         
+        // Dynamic Approval Revocation on Edit
+        if (state.stageApprovals['03_rules']) {
+          await revokeStageApproval('03_rules');
+        }
+
         renderView();
       }
     });
 
-    // Bind DB Approval & Auto Transition to Stage 04
     if (isCompiled || isApprovedNow) {
       document.getElementById('approveRulebookBtn').addEventListener('click', async () => {
         await processStageApproval('03_rules');

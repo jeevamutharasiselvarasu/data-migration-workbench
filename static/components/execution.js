@@ -1,9 +1,11 @@
-import { state, syncApprovalsFromBackend } from '../prototype.js';
+import { state, processStageApproval } from '../prototype.js';
 
 export async function renderExecutionStage(mainContainer, hitlContainer) {
   let exportMode = 'local'; // 'local' or 'adls'
 
   function renderView() {
+    const isApproved = state.stageApprovals['05_execute'];
+
     mainContainer.innerHTML = `
       <div class="stagehead">
         <div class="eyebrow">Data Plane · Stage 05</div>
@@ -11,7 +13,6 @@ export async function renderExecutionStage(mainContainer, hitlContainer) {
         <p>Export approved transformation packages to Local Storage or Cloud ADLS paths[cite: 8, 10].</p>
       </div>
 
-      <!-- Export Mode Toggle -->
       <div class="toggle-mode-bar">
         <span class="toggle-label">PACKAGE EXPORT TARGET:</span>
         <button id="expLocalBtn" class="toggle-btn ${exportMode === 'local' ? 'active' : ''}">💾 Local Storage / File Download</button>
@@ -35,8 +36,6 @@ export async function renderExecutionStage(mainContainer, hitlContainer) {
       <div id="executionResults" class="output-results"></div>
     `;
 
-    const isApproved = state.stageApprovals['05_execute'];
-
     hitlContainer.innerHTML = `
       <div class="gatecard ${isApproved ? 'approved-card' : ''}">
         <h3>HITL Gate · Stage 05 Approval</h3>
@@ -47,7 +46,7 @@ export async function renderExecutionStage(mainContainer, hitlContainer) {
         <div class="stat"><span>Approval Status:</span> <b>${isApproved ? 'APPROVED' : 'PENDING'}</b></div>
       </div>
       <button id="approveExecutionBtn" class="approve-btn ${isApproved ? 'btn-approved' : ''}">
-        ${isApproved ? '✓ Execution Stage Approved' : 'Approve Stage 05 (Execution)'}
+        ${isApproved ? '✓ Execution Stage Approved' : 'Approve Stage 05 & Continue ->'}
       </button>
     `;
 
@@ -77,22 +76,7 @@ export async function renderExecutionStage(mainContainer, hitlContainer) {
     });
 
     document.getElementById('approveExecutionBtn').addEventListener('click', async () => {
-      const res = await fetch(`/api/runs/${state.runId}/approvals`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          stage: '05_execute',
-          decision: 'APPROVED',
-          reviewer: state.currentUser || 'Marcus (Specialist)'
-        })
-      });
-
-      if (res.ok) {
-        state.stageApprovals['05_execute'] = true;
-        await syncApprovalsFromBackend();
-        renderView();
-        alert('Stage 05 (Execution) Approved by Validation Specialist!');
-      }
+      await processStageApproval('05_execute');
     });
   }
 
