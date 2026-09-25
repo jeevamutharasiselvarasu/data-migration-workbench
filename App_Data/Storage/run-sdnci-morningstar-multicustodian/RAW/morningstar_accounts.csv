@@ -1,0 +1,5 @@
+account_ref,household_ref,custodian,reg_type,open_date
+AC-9001,HH-101,FID,TAX,2021-03-15
+AC-9002,HH-101,SCH,IRA,2022-07-20
+AC-9003,HH-102,PER,TAX,2020-11-05
+AC-9004,HH-103,FID,IRA,2023-01-10

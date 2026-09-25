@@ -1,0 +1,23 @@
+{
+  "system": "AMK",
+  "version": "morningstar-v1",
+  "fields": [
+    {"name": "firm_id", "entity": "Firm", "type": "string", "required": true},
+    {"name": "firm_name", "entity": "Firm", "type": "string", "required": true},
+    {"name": "advisor_id", "entity": "Advisor", "type": "string", "required": true},
+    {"name": "advisor_name", "entity": "Advisor", "type": "string", "required": true},
+    {"name": "household_id", "entity": "Household", "type": "string", "required": true},
+    {"name": "household_name", "entity": "Household", "type": "string", "required": true},
+    {"name": "account_id", "entity": "Account", "type": "string", "required": true},
+    {"name": "custodian_code", "entity": "Account", "type": "string", "required": true},
+    {"name": "account_registration_type", "entity": "Account", "type": "string", "required": true},
+    {"name": "account_open_date", "entity": "Account", "type": "date", "required": true},
+    {"name": "cusip", "entity": "Position", "type": "string", "required": true},
+    {"name": "quantity", "entity": "Position", "type": "decimal", "required": true},
+    {"name": "market_value", "entity": "Position", "type": "decimal", "required": true},
+    {"name": "cost_basis", "entity": "Position", "type": "decimal", "required": true},
+    {"name": "performance_period_start", "entity": "Performance", "type": "date", "required": true},
+    {"name": "performance_period_end", "entity": "Performance", "type": "date", "required": true},
+    {"name": "return_net_of_fees", "entity": "Performance", "type": "decimal", "required": true}
+  ]
+}
