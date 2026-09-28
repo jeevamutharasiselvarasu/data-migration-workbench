@@ -7,7 +7,7 @@ if __name__ == "__main__":
     
     uvicorn.run(
         "app.main:app",
-        host="127.0.0.1",  # Bind to 0.0.0.0 for cloud host detection / for local change the host to 127.0.0.1
+        host="0.0.0.0",  # Bind to 0.0.0.0 for cloud host detection / for local change the host to 127.0.0.1
         port=port,
         reload=False,     # Disable reloader in production deployment
         log_level="info"
