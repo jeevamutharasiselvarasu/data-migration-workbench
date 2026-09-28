@@ -1,0 +1,199 @@
+{
+  "fieldMappings": [
+    {
+      "entity": "Clients Households",
+      "sourceFile": "morningstar_clients_households.csv",
+      "targetEntity": "AMK_Household",
+      "fieldPairs": [
+        {
+          "source": "household_ref",
+          "target": "household_id"
+        },
+        {
+          "source": "client_name",
+          "target": "household_name"
+        },
+        {
+          "source": "primary_advisor",
+          "target": "advisor_code"
+        }
+      ]
+    },
+    {
+      "entity": "Accounts",
+      "sourceFile": "morningstar_accounts.csv",
+      "targetEntity": "AMK_Account",
+      "fieldPairs": [
+        {
+          "source": "account_ref",
+          "target": "account_id"
+        },
+        {
+          "source": "household_ref",
+          "target": "household_id"
+        },
+        {
+          "source": "custodian",
+          "target": "custodian_code"
+        },
+        {
+          "source": "reg_type",
+          "target": "account_registration_type"
+        },
+        {
+          "source": "open_date",
+          "target": "account_open_date"
+        }
+      ]
+    },
+    {
+      "entity": "Positions",
+      "sourceFile": "fidelity_positions.psv",
+      "targetEntity": "AMK_Position",
+      "fieldPairs": [
+        {
+          "source": "account_ref",
+          "target": "account_id"
+        },
+        {
+          "source": "cusip",
+          "target": "security_id"
+        },
+        {
+          "source": "quantity",
+          "target": "units_quantity"
+        },
+        {
+          "source": "mkt_val",
+          "target": "market_value"
+        }
+      ]
+    },
+    {
+      "entity": "Fees",
+      "sourceFile": "morningstar_fees.csv",
+      "targetEntity": "AMK_FeeSchedule",
+      "fieldPairs": [
+        {
+          "source": "account_ref",
+          "target": "account_id"
+        },
+        {
+          "source": "fee_schedule_code",
+          "target": "schedule_id"
+        },
+        {
+          "source": "annual_rate",
+          "target": "fee_basis_points"
+        }
+      ]
+    },
+    {
+      "entity": "Billing",
+      "sourceFile": "morningstar_billing.csv",
+      "targetEntity": "AMK_BillingLedger",
+      "fieldPairs": [
+        {
+          "source": "account_ref",
+          "target": "account_id"
+        },
+        {
+          "source": "billing_date",
+          "target": "period_date"
+        },
+        {
+          "source": "billed_amount",
+          "target": "total_fee_charged"
+        }
+      ]
+    },
+    {
+      "entity": "Transactions",
+      "sourceFile": "morningstar_transactions.csv",
+      "targetEntity": "AMK_TransactionHistory",
+      "fieldPairs": [
+        {
+          "source": "txn_id",
+          "target": "transaction_id"
+        },
+        {
+          "source": "account_ref",
+          "target": "account_id"
+        },
+        {
+          "source": "trade_date",
+          "target": "process_date"
+        },
+        {
+          "source": "txn_code",
+          "target": "activity_type"
+        },
+        {
+          "source": "net_amount",
+          "target": "net_cash_flow"
+        }
+      ]
+    },
+    {
+      "entity": "Performance",
+      "sourceFile": "morningstar_performance.csv",
+      "targetEntity": "AMK_PerformancePeriod",
+      "fieldPairs": [
+        {
+          "source": "account_ref",
+          "target": "account_id"
+        },
+        {
+          "source": "period_end",
+          "target": "performance_period_start"
+        },
+        {
+          "source": "return_net",
+          "target": "net_return_pct"
+        }
+      ]
+    },
+    {
+      "entity": "Performance",
+      "sourceFile": "morningstar_performance_v2.csv",
+      "targetEntity": "AMK_Performance",
+      "fieldPairs": [
+        {
+          "source": "account_ref_v2",
+          "target": "account_ref_v2"
+        },
+        {
+          "source": "return_gross_v2",
+          "target": "return_gross_v2"
+        },
+        {
+          "source": "return_net_v2",
+          "target": "return_net_v2"
+        }
+      ]
+    },
+    {
+      "entity": "Performance",
+      "sourceFile": "morningstar_performance_v3.csv",
+      "targetEntity": "AMK_Performance",
+      "fieldPairs": [
+        {
+          "source": "account_ref",
+          "target": "account_ref"
+        },
+        {
+          "source": "period_end",
+          "target": "period_end"
+        },
+        {
+          "source": "return_gross",
+          "target": "return_gross"
+        },
+        {
+          "source": "return_net",
+          "target": "return_net"
+        }
+      ]
+    }
+  ]
+}

@@ -1,8 +1,9 @@
 import uuid
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Query, UploadFile, File, Response, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -15,6 +16,7 @@ from app.models import (
     CreateRunRequest, ApprovalRequest, RuleRerunRequest
 )
 from app.compiler.rulebook import RulebookCompiler
+from app.compiler.inference import KnowledgeInferenceEngine
 
 app = FastAPI(title="Data Migration Control Plane API", version="1.0.0")
 
@@ -90,12 +92,14 @@ def get_rulebook(migration_id: str):
     row = cursor.execute("SELECT content, updated_by, updated_utc FROM migration_rulebooks WHERE migration_id = ?", (migration_id,)).fetchone()
     conn.close()
 
-    if row:
+    if row and row["content"]:
         content = row["content"]
         updated_by = row["updated_by"]
         updated_utc = row["updated_utc"]
     else:
-        content = "# Morningstar → AMK migration rulebook\n\n## Field transformations\n"
+        content = KnowledgeInferenceEngine.load_asset(migration_id, "markdown_rulebook")
+        if not content:
+            content = "# Morningstar → AMK migration rulebook\n\n## Field transformations\n"
         updated_by = None
         updated_utc = None
 
@@ -128,8 +132,66 @@ def update_rulebook(migration_id: str, req: RulebookUpdateRequest):
     conn.commit()
     conn.close()
 
+    KnowledgeInferenceEngine.save_asset(migration_id, "markdown_rulebook", req.content)
+
     parsed = RulebookCompiler.parse_markdown(req.content)
     return {"migrationId": migration_id, "status": "updated", "parsed": parsed}
+
+
+# --- KNOWLEDGE BASE ENDPOINTS ---
+
+@app.get("/api/migrations/{migration_id}/knowledge/{asset_id}")
+def get_knowledge_asset(migration_id: str, asset_id: str):
+    asset_data = KnowledgeInferenceEngine.load_asset(migration_id, asset_id)
+    return {"migrationId": migration_id, "assetId": asset_id, "content": asset_data}
+
+
+@app.put("/api/migrations/{migration_id}/knowledge/{asset_id}")
+def update_knowledge_asset(migration_id: str, asset_id: str, payload: Dict[str, Any]):
+    content = payload.get("content", {})
+    KnowledgeInferenceEngine.save_asset(migration_id, asset_id, content)
+
+    if asset_id == "markdown_rulebook":
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        updated_utc = datetime.now(timezone.utc).isoformat()
+        cursor.execute("""
+            INSERT INTO migration_rulebooks (migration_id, content, updated_by, updated_utc)
+            VALUES (?, ?, 'Analyst', ?)
+            ON CONFLICT(migration_id) DO UPDATE SET
+                content = excluded.content,
+                updated_utc = excluded.updated_utc
+        """, (migration_id, str(content), updated_utc))
+        conn.commit()
+        conn.close()
+
+    return {"migrationId": migration_id, "assetId": asset_id, "status": "SAVED"}
+
+
+# --- AGENT INFERENCE EXECUTION ENDPOINTS ---
+
+@app.post("/api/runs/{run_id}/discovery")
+def run_discovery_agent(run_id: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    run = cursor.execute("SELECT migration_id FROM runs WHERE id = ?", (run_id,)).fetchone()
+    migration_id = run["migration_id"] if run else "morningstar-multicustodian"
+    conn.close()
+
+    result = KnowledgeInferenceEngine.run_discovery_inference(migration_id)
+    return result
+
+
+@app.post("/api/runs/{run_id}/reconciliation")
+def run_reconciliation_agent(run_id: str):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    run = cursor.execute("SELECT migration_id FROM runs WHERE id = ?", (run_id,)).fetchone()
+    migration_id = run["migration_id"] if run else "morningstar-multicustodian"
+    conn.close()
+
+    result = KnowledgeInferenceEngine.run_reconciliation_inference(migration_id)
+    return result
 
 
 # --- LOCAL FILE UPLOAD ENDPOINT ---
@@ -214,9 +276,6 @@ def record_approval(run_id: str, req: ApprovalRequest):
 
 @app.delete("/api/runs/{run_id}/approvals/{stage}")
 def revoke_approval(run_id: str, stage: str):
-    """
-    Revokes approval for a specific stage and all downstream stages when edits occur.
-    """
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -251,7 +310,7 @@ def rerun_single_rule(run_id: str, req: RuleRerunRequest):
     migration_id = run["migration_id"] if run else "morningstar-multicustodian"
 
     rulebook = cursor.execute("SELECT content FROM migration_rulebooks WHERE migration_id = ?", (migration_id,)).fetchone()
-    content = rulebook["content"] if rulebook else ""
+    content = rulebook["content"] if (rulebook and rulebook["content"]) else KnowledgeInferenceEngine.load_asset(migration_id, "markdown_rulebook")
     parsed = RulebookCompiler.parse_markdown(content)
 
     entity_field_rules = [r for r in parsed["fieldRules"] if r["entity"] == req.entity]
@@ -276,7 +335,11 @@ def export_package(run_id: str, mode: str = Query("local", description="local or
     migration_id = run["migration_id"] if run else "morningstar-multicustodian"
 
     rulebook = cursor.execute("SELECT content FROM migration_rulebooks WHERE migration_id = ?", (migration_id,)).fetchone()
-    content = rulebook["content"] if rulebook else ""
+    content = rulebook["content"] if (rulebook and rulebook["content"]) else KnowledgeInferenceEngine.load_asset(migration_id, "markdown_rulebook")
+    
+    if not content:
+        content = KnowledgeInferenceEngine.load_asset(migration_id, "markdown_rulebook")
+
     parsed = RulebookCompiler.parse_markdown(content)
     conn.close()
 
@@ -298,54 +361,50 @@ def export_package(run_id: str, mode: str = Query("local", description="local or
         rules_by_entity[ent].append(r)
 
     for ent, rules in rules_by_entity.items():
-        sql_lines.append(f"-- Entity Transformation View: stg_{ent.lower()}")
-        sql_lines.append(f"CREATE OR REPLACE VIEW stg_{ent.lower()} AS")
+        view_name = f"stg_{ent.lower().replace(' ', '_')}"
+        sql_lines.append(f"-- Entity Transformation View: {view_name}")
+        sql_lines.append(f"CREATE OR REPLACE VIEW {view_name} AS")
         sql_lines.append("SELECT")
         
         select_exprs = []
-        source_file = rules[0]["sourceFile"] if rules else "raw_table"
+        all_source_files = list(set([f.strip() for r in rules for f in r.get("sourceFile", "").split(",") if f.strip()]))
+        primary_file = all_source_files[0] if all_source_files else "raw_table"
 
         for r in rules:
             target_field = r["targetField"]
             expr = r["expression"]
 
-            if "PERIOD_START" in expr:
-                inner_var = expr.replace("PERIOD_START({{", "").replace("}})", "").replace("PERIOD_START(", "").replace(")", "")
-                sql_expr = f"    DATE_TRUNC('month', CAST({inner_var} AS DATE)) AS {target_field}"
-            elif expr.startswith("{{") and expr.endswith("}}"):
-                var_name = expr.replace("{{", "").replace("}}", "").strip()
-                sql_expr = f"    CAST({var_name} AS VARCHAR) AS {target_field}"
+            sql_clean_expr = re.sub(r'\{\{\s*(?:[a-zA-Z0-9_\.]+\.)?([a-zA-Z0-9_]+)\s*\}\}', r'\1', expr)
+
+            if "PERIOD_START(" in expr:
+                inner_var = re.sub(r'PERIOD_START\(\s*\{\{\s*(?:[a-zA-Z0-9_\.]+\.)?([a-zA-Z0-9_]+)\s*\}\}\s*\)', r'\1', expr)
+                select_exprs.append(f"    DATE_TRUNC('month', CAST({inner_var} AS DATE)) AS {target_field}")
             else:
-                sql_expr = f"    {expr} AS {target_field}"
-                
-            select_exprs.append(sql_expr)
+                select_exprs.append(f"    {sql_clean_expr} AS {target_field}")
 
         sql_lines.append(",\n".join(select_exprs))
-        sql_lines.append(f"FROM {source_file.replace('.csv', '').replace('.psv', '')};\n")
+        sql_lines.append(f"FROM {primary_file.replace('.csv', '').replace('.psv', '')}")
+
+        if len(all_source_files) > 1:
+            for extra_file in all_source_files[1:]:
+                clean_extra = extra_file.replace('.csv', '').replace('.psv', '')
+                sql_lines.append(f"LEFT JOIN {clean_extra} ON {primary_file.replace('.csv', '').replace('.psv', '')}.account_ref = {clean_extra}.account_ref")
+
+        sql_lines.append(";\n")
 
     full_sql = "\n".join(sql_lines)
 
-    if mode == "local":
-        out_dir = Path(f"App_Data/Storage/{run_id}/TRANSFORMED")
-        out_dir.mkdir(parents=True, exist_ok=True)
-        with open(out_dir / "transformation_rules.sql", "w", encoding="utf-8") as f:
-            f.write(full_sql)
+    out_dir = Path(f"App_Data/Storage/{run_id}/TRANSFORMED")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with open(out_dir / "transformation_rules.sql", "w", encoding="utf-8") as f:
+        f.write(full_sql)
 
-        return {
-            "runId": run_id,
-            "mode": "local",
-            "exportedUtc": utc_now,
-            "targetLocation": str((out_dir / "transformation_rules.sql").absolute()),
-            "sqlFile": "transformation_rules.sql",
-            "status": "LOCAL_PACKAGE_EXPORTS_READY"
-        }
-    else:
-        target_path = f"abfss://reconciled-gold@xodusamp.dfs.core.windows.net/packages/{run_id}/"
-        return {
-            "runId": run_id,
-            "mode": "adls",
-            "exportedUtc": utc_now,
-            "targetLocation": target_path,
-            "artifacts": ["transformation_rules.sql", "validation_plan.json", "package_manifest.json"],
-            "status": "ADLS_PACKAGE_EXPORTED"
-        }
+    return {
+        "runId": run_id,
+        "mode": mode,
+        "exportedUtc": utc_now,
+        "targetLocation": str((out_dir / "transformation_rules.sql").absolute()),
+        "sqlFile": "transformation_rules.sql",
+        "sqlContent": full_sql,
+        "status": "LOCAL_PACKAGE_EXPORTS_READY"
+    }

@@ -1,0 +1,4 @@
+billing_id,account_ref,billing_date,billed_amount,payment_status
+BILL-801,ACC-101,2024-03-31,168.75,PAID
+BILL-802,ACC-102,2024-03-31,215.60,PAID
+BILL-803,ACC-103,2024-03-31,95.00,PENDING

@@ -1,23 +1,145 @@
 {
-  "system": "AMK",
-  "version": "morningstar-v1",
-  "fields": [
-    {"name": "firm_id", "entity": "Firm", "type": "string", "required": true},
-    {"name": "firm_name", "entity": "Firm", "type": "string", "required": true},
-    {"name": "advisor_id", "entity": "Advisor", "type": "string", "required": true},
-    {"name": "advisor_name", "entity": "Advisor", "type": "string", "required": true},
-    {"name": "household_id", "entity": "Household", "type": "string", "required": true},
-    {"name": "household_name", "entity": "Household", "type": "string", "required": true},
-    {"name": "account_id", "entity": "Account", "type": "string", "required": true},
-    {"name": "custodian_code", "entity": "Account", "type": "string", "required": true},
-    {"name": "account_registration_type", "entity": "Account", "type": "string", "required": true},
-    {"name": "account_open_date", "entity": "Account", "type": "date", "required": true},
-    {"name": "cusip", "entity": "Position", "type": "string", "required": true},
-    {"name": "quantity", "entity": "Position", "type": "decimal", "required": true},
-    {"name": "market_value", "entity": "Position", "type": "decimal", "required": true},
-    {"name": "cost_basis", "entity": "Position", "type": "decimal", "required": true},
-    {"name": "performance_period_start", "entity": "Performance", "type": "date", "required": true},
-    {"name": "performance_period_end", "entity": "Performance", "type": "date", "required": true},
-    {"name": "return_net_of_fees", "entity": "Performance", "type": "decimal", "required": true}
-  ]
+  "system": "AMK Target Platform",
+  "version": "v2.4",
+  "entities": {
+    "Clients Households": [
+      {
+        "name": "household_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "household_name",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "advisor_code",
+        "type": "string",
+        "required": false
+      }
+    ],
+    "Accounts": [
+      {
+        "name": "account_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "household_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "custodian_code",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "account_registration_type",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "account_open_date",
+        "type": "date",
+        "required": true
+      }
+    ],
+    "Positions": [
+      {
+        "name": "account_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "security_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "units_quantity",
+        "type": "decimal",
+        "required": true
+      },
+      {
+        "name": "market_value",
+        "type": "decimal",
+        "required": true
+      }
+    ],
+    "Fees": [
+      {
+        "name": "account_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "schedule_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "fee_basis_points",
+        "type": "decimal",
+        "required": true
+      }
+    ],
+    "Billing": [
+      {
+        "name": "account_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "period_date",
+        "type": "date",
+        "required": true
+      },
+      {
+        "name": "total_fee_charged",
+        "type": "decimal",
+        "required": true
+      }
+    ],
+    "Transactions": [
+      {
+        "name": "transaction_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "account_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "activity_type",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "net_cash_flow",
+        "type": "decimal",
+        "required": true
+      }
+    ],
+    "Performance": [
+      {
+        "name": "account_id",
+        "type": "string",
+        "required": true
+      },
+      {
+        "name": "performance_period_start",
+        "type": "date",
+        "required": true
+      },
+      {
+        "name": "net_return_pct",
+        "type": "decimal",
+        "required": true
+      }
+    ]
+  }
 }

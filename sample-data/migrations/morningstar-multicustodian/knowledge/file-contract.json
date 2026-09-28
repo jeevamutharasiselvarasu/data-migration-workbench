@@ -1,0 +1,84 @@
+{
+  "fileContracts": [
+    {
+      "fileName": "morningstar_clients_households.csv",
+      "entity": "Clients Households",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["household_ref"],
+      "columns": ["household_ref", "first_name", "last_name", "tax_id", "primary_advisor"]
+    },
+    {
+      "fileName": "morningstar_accounts.csv",
+      "entity": "Accounts",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["account_ref"],
+      "columns": ["account_ref", "household_ref", "custodian", "reg_type", "open_date", "alt_account_id"]
+    },
+    {
+      "fileName": "fidelity_positions.psv",
+      "entity": "Positions",
+      "format": "psv",
+      "delimiter": "|",
+      "naturalKey": ["account_ref", "cusip"],
+      "columns": ["account_ref", "cusip", "quantity", "mkt_val"]
+    },
+    {
+      "fileName": "pricing_feed.csv",
+      "entity": "Positions",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["cusip"],
+      "columns": ["cusip", "latest_price", "fallback_mkt_val"]
+    },
+    {
+      "fileName": "morningstar_fees.csv",
+      "entity": "Fees",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["account_ref", "fee_period"],
+      "columns": ["account_ref", "fee_period", "fee_schedule_code", "annual_rate"]
+    },
+    {
+      "fileName": "fee_tiers.csv",
+      "entity": "Fees",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["schedule_code"],
+      "columns": ["schedule_code", "tier_default_rate"]
+    },
+    {
+      "fileName": "morningstar_billing.csv",
+      "entity": "Billing",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["billing_id"],
+      "columns": ["billing_id", "account_ref", "billing_date", "billed_amount", "payment_status"]
+    },
+    {
+      "fileName": "billing_adjustments.csv",
+      "entity": "Billing",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["billing_id"],
+      "columns": ["billing_id", "late_fee_adj", "discount_adj"]
+    },
+    {
+      "fileName": "morningstar_transactions.csv",
+      "entity": "Transactions",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["txn_id"],
+      "columns": ["txn_id", "account_ref", "trade_date", "txn_code", "net_amount"]
+    },
+    {
+      "fileName": "morningstar_performance.csv",
+      "entity": "Performance",
+      "format": "csv",
+      "delimiter": ",",
+      "naturalKey": ["account_ref", "period_end"],
+      "columns": ["account_ref", "period_end", "return_gross", "fee_drag", "return_net"]
+    }
+  ]
+}

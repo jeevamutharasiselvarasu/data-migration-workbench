@@ -1,0 +1,4 @@
+household_ref,first_name,last_name,tax_id,primary_advisor
+HH-1001,John,Smith,***-**-1122,ADV-01
+HH-1002,Alice,Johnson,***-**-4455,ADV-02
+HH-1003,Robert,Davis,***-**-8899,ADV-01

@@ -2,8 +2,8 @@ import { state, navigateToStage } from '../prototype.js';
 import { openKnowledgePreviewModal } from './migration-knowledge.js';
 
 export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
-  if (!state.selectedKnowledgeAssets) {
-    state.selectedKnowledgeAssets = ['source_profile', 'file_contracts', 'mapping_set', 'markdown_rulebook', 'validation_rules'];
+  if (!state.selectedKnowledgeAssets || state.selectedKnowledgeAssets.length === 0) {
+    state.selectedKnowledgeAssets = ['source_profile', 'file_contracts', 'mapping_set', 'markdown_rulebook', 'validation_rules', 'target_contract'];
   }
 
   const templates = [
@@ -55,6 +55,8 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
     if (countEl) {
       countEl.textContent = `${checked} of ${allKnowledgeAssets.length} assets selected`;
     }
+    // Synchronize to localStorage for persistence across browser refresh
+    localStorage.setItem('selectedKnowledgeAssets', JSON.stringify(state.selectedKnowledgeAssets));
   }
 
   mainContainer.innerHTML = `
@@ -159,7 +161,7 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
     </div>
   `;
 
-  // Bind Template Radio Selection
+  // Bind Template Radio Options
   mainContainer.querySelectorAll('.template-option').forEach(el => {
     el.addEventListener('click', () => {
       const templateId = el.getAttribute('data-template-id');
@@ -177,7 +179,7 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
     });
   });
 
-  // Bind Knowledge Asset Toggles (Synchronize to global state)
+  // Bind Knowledge Asset Toggles
   mainContainer.querySelectorAll('.kb-box').forEach(box => {
     const kbId = box.getAttribute('data-kb-id');
     const chk = box.querySelector('input[type="checkbox"]');

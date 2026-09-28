@@ -9,6 +9,12 @@ import { renderRuleEditor } from './components/rule-editor.js';
 import { renderExecutionStage } from './components/execution.js';
 import { renderReconciliationStage } from './components/reconciliation.js';
 
+// Read persisted knowledge asset selections from localStorage across page refreshes
+const storedKb = localStorage.getItem('selectedKnowledgeAssets');
+const initialKnowledgeAssets = storedKb
+  ? JSON.parse(storedKb)
+  : ['source_profile', 'file_contracts', 'mapping_set', 'markdown_rulebook', 'validation_rules', 'target_contract'];
+
 export const state = {
   currentUser: null,
   currentPersona: 'MA',
@@ -16,7 +22,7 @@ export const state = {
   migrationId: 'morningstar-multicustodian',
   runId: 'run-morningstar-multicustodian',
   rulebookParsed: null,
-  selectedKnowledgeAssets: ['source_profile', 'file_contracts', 'mapping_set', 'markdown_rulebook', 'validation_rules'],
+  selectedKnowledgeAssets: initialKnowledgeAssets,
   stageApprovals: {
     '00_setup': true,
     '01_ingestion': false,
@@ -26,7 +32,9 @@ export const state = {
     '05_execute': false,
     '06_reconcile': false
   },
-  columnApprovals: {}
+  columnApprovals: {},
+  entityDiscoveryStatus: {},
+  customAuxiliaryFiles: {}
 };
 
 const STAGE_ORDER = [
@@ -189,6 +197,7 @@ function setupGlobalEvents() {
 
   document.getElementById('resetBtn').addEventListener('click', () => {
     if (confirm('Reset workbench state?')) {
+      localStorage.removeItem('selectedKnowledgeAssets');
       location.reload();
     }
   });

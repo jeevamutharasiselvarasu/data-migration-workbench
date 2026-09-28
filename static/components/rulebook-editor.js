@@ -2,14 +2,28 @@ import { state, processStageApproval, revokeStageApproval } from '../prototype.j
 
 export async function renderRulebookEditor(mainContainer, hitlContainer, appState) {
   let isCompiled = false;
-  const isApproved = state.stageApprovals['03_rules'];
 
+  if (!state.rulebookStatus) {
+    state.rulebookStatus = 'PENDING';
+  }
+
+  // Fetch active rulebook from FastAPI backend
   const response = await fetch(`/api/migrations/${appState.migrationId}/rulebook`);
   const data = await response.json();
   appState.rulebookParsed = data.parsed;
 
   function renderView() {
-    const isApprovedNow = state.stageApprovals['03_rules'];
+    const isApprovedNow = !!state.stageApprovals['03_rules'];
+    const currentStatus = isApprovedNow ? 'APPROVED' : (state.rulebookStatus || 'PENDING');
+
+    let gateCardClass = '';
+    let statusColor = 'var(--ink)';
+    if (currentStatus === 'APPROVED') {
+      gateCardClass = 'approved-card';
+      statusColor = 'var(--teal-deep)';
+    } else if (currentStatus === 'REJECTED') {
+      statusColor = 'var(--coral-deep)';
+    }
 
     mainContainer.innerHTML = `
       <div class="stagehead">
@@ -38,24 +52,28 @@ export async function renderRulebookEditor(mainContainer, hitlContainer, appStat
     `;
 
     hitlContainer.innerHTML = `
-      <div class="gatecard ${isApprovedNow ? 'approved-card' : ''}">
-        <h3>HITL Gate · Rulebook Review</h3>
-        <p>Authorized: <b>Migration Analyst</b>[cite: 8, 12]</p>
+      <div class="gatecard ${gateCardClass}" style="${currentStatus === 'REJECTED' ? 'border-color:var(--coral-line); background:var(--coral-bg);' : ''}">
+        <h3 style="${currentStatus === 'REJECTED' ? 'color:var(--coral-deep);' : ''}">HITL Gate · Rulebook Review</h3>
+        <p>Authorized: <b>Migration Analyst</b></p>
       </div>
       <div class="stat-list">
-        <div class="stat"><span>Field Rules:</span> <b id="statFieldRules">${data.parsed.fieldRules.length}</b></div>
-        <div class="stat"><span>Crosswalks:</span> <b id="statCrosswalks">${data.parsed.crosswalks.length}</b></div>
-        <div class="stat"><span>Entity Joins:</span> <b id="statJoins">${data.parsed.joins.length}</b></div>
-        <div class="stat"><span>Validations:</span> <b id="statValidations">${data.parsed.validationRules.length}</b></div>
-        <div class="stat"><span>Approval Status:</span> <b>${isApprovedNow ? 'APPROVED' : 'PENDING'}</b></div>
+        <div class="stat"><span>Field Rules:</span> <b id="statFieldRules">${data.parsed.fieldRules ? data.parsed.fieldRules.length : 0}</b></div>
+        <div class="stat"><span>Crosswalks:</span> <b id="statCrosswalks">${data.parsed.crosswalks ? data.parsed.crosswalks.length : 0}</b></div>
+        <div class="stat"><span>Entity Joins:</span> <b id="statJoins">${data.parsed.joins ? data.parsed.joins.length : 0}</b></div>
+        <div class="stat"><span>Validations:</span> <b id="statValidations">${data.parsed.validationRules ? data.parsed.validationRules.length : 0}</b></div>
+        <div class="stat"><span>Approval Status:</span> <b style="color:${statusColor};">${currentStatus}</b></div>
       </div>
 
-      <button id="approveRulebookBtn" class="approve-btn ${isApprovedNow ? 'btn-approved' : ''}" ${!isCompiled && !isApprovedNow ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
-        ${isApprovedNow ? '✓ Rulebook Package Approved' : 'Approve Rulebook & Continue ->'}
+      <button id="approveRulebookBtn" class="approve-btn ${isApprovedNow ? 'btn-approved' : ''}" ${(!isCompiled && !isApprovedNow) || currentStatus === 'REJECTED' ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''} style="margin-bottom:8px;">
+        ${isApprovedNow ? '✓ Rulebook Package Approved' : (currentStatus === 'REJECTED' ? '✕ Re-Compile Rulebook First' : 'Approve Rulebook & Continue ->')}
+      </button>
+
+      <button id="rejectRulebookBtn" class="action-btn" style="background:var(--coral-bg); color:var(--coral-deep); border:1px solid var(--coral-line);">
+        ✕ Reject Rulebook Package
       </button>
     `;
 
-    // Save & Compile Event -> Revokes downstream approvals
+    // Bind Save & Compile Event
     document.getElementById('saveRulebookBtn').addEventListener('click', async () => {
       const updatedContent = document.getElementById('rulebookMarkdownText').value;
       const putRes = await fetch(`/api/migrations/${appState.migrationId}/rulebook`, {
@@ -70,19 +88,34 @@ export async function renderRulebookEditor(mainContainer, hitlContainer, appStat
         data.content = updatedContent;
         data.parsed = resData.parsed;
         isCompiled = true;
-        
-        // Dynamic Approval Revocation on Edit
+        state.rulebookStatus = 'PENDING';
+
         if (state.stageApprovals['03_rules']) {
           await revokeStageApproval('03_rules');
         }
-
+        
         renderView();
       }
     });
 
-    if (isCompiled || isApprovedNow) {
-      document.getElementById('approveRulebookBtn').addEventListener('click', async () => {
+    // Bind Approval Event
+    const approveBtn = document.getElementById('approveRulebookBtn');
+    if (approveBtn && (isCompiled || isApprovedNow) && currentStatus !== 'REJECTED') {
+      approveBtn.addEventListener('click', async () => {
+        state.rulebookStatus = 'APPROVED';
         await processStageApproval('03_rules');
+      });
+    }
+
+    // Bind Rejection Event
+    const rejectBtn = document.getElementById('rejectRulebookBtn');
+    if (rejectBtn) {
+      rejectBtn.addEventListener('click', async () => {
+        state.rulebookStatus = 'REJECTED';
+        if (state.stageApprovals['03_rules']) {
+          await revokeStageApproval('03_rules');
+        }
+        renderView();
       });
     }
   }

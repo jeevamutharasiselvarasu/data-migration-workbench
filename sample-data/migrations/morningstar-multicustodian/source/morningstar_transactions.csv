@@ -1,0 +1,4 @@
+txn_id,account_ref,trade_date,txn_code,net_amount
+TXN-9001,ACC-101,2024-02-14,BUY,5000.00
+TXN-9002,ACC-101,2024-03-01,DEP,10000.00
+TXN-9003,ACC-102,2024-03-10,SELL,2500.00

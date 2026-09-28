@@ -1,0 +1,24 @@
+{
+  "system": "Morningstar",
+  "migrationPattern": "multi-custodian acquisition migration",
+  "custodians": [
+    "Fidelity",
+    "Schwab",
+    "Pershing"
+  ],
+  "domains": [
+    "clients_households",
+    "accounts",
+    "fees",
+    "billing",
+    "positions",
+    "transactions",
+    "performance"
+  ],
+  "phases": [
+    "Mock 1",
+    "Mock 2",
+    "Dress Rehearsal",
+    "Production"
+  ]
+}

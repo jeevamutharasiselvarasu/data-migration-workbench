@@ -1,0 +1,14 @@
+{
+  "driftTolerancePct": 0.05,
+  "expectedSourceAum": 1245800.00,
+  "expectedTargetAum": 1245800.00,
+  "domainCounts": {
+    "Clients Households": {"source": 18, "target": 18},
+    "Accounts": {"source": 45, "target": 45},
+    "Positions": {"source": 120, "target": 120},
+    "Fees": {"source": 45, "target": 45},
+    "Billing": {"source": 45, "target": 45},
+    "Transactions": {"source": 890, "target": 890},
+    "Performance": {"source": 360, "target": 360}
+  }
+}

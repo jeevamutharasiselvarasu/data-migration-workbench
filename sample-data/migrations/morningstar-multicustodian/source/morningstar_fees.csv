@@ -1,0 +1,4 @@
+account_ref,fee_period,fee_schedule_code,annual_rate
+ACC-101,2024-Q1,TIER_A,0.0100
+ACC-102,2024-Q1,TIER_B,0.0075
+ACC-103,2024-Q1,TIER_A,0.0100
