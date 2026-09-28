@@ -42,12 +42,8 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
     { id: 'target_contract', name: 'TARGET CONTRACT', desc: 'TARGET FIELDS, TYPES, REQUIRED STATUS, AND VERSION' }
   ];
 
-  const knowledgeAssets = allKnowledgeAssets.map(k => ({
-    ...k,
-    selected: state.selectedKnowledgeAssets.includes(k.id)
-  }));
-
   let selectedTemplate = templates.find(t => t.id === state.migrationId) || templates[0];
+  state.migrationId = selectedTemplate.id; // Synchronize global state immediately
 
   function updateSelectedCount() {
     const checked = state.selectedKnowledgeAssets.length;
@@ -55,9 +51,13 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
     if (countEl) {
       countEl.textContent = `${checked} of ${allKnowledgeAssets.length} assets selected`;
     }
-    // Synchronize to localStorage for persistence across browser refresh
     localStorage.setItem('selectedKnowledgeAssets', JSON.stringify(state.selectedKnowledgeAssets));
   }
+
+  const knowledgeAssets = allKnowledgeAssets.map(k => ({
+    ...k,
+    selected: state.selectedKnowledgeAssets.includes(k.id)
+  }));
 
   mainContainer.innerHTML = `
     <div class="stagehead">
@@ -166,6 +166,7 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
     el.addEventListener('click', () => {
       const templateId = el.getAttribute('data-template-id');
       selectedTemplate = templates.find(t => t.id === templateId);
+      state.migrationId = templateId; // Update state dynamically on template selection
 
       mainContainer.querySelectorAll('.template-option').forEach(opt => {
         const isMatch = opt.getAttribute('data-template-id') === templateId;
@@ -212,11 +213,11 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
     updateSelectedCount();
   });
 
-  // Bind Modal Preview
+  // Bind Modal Preview with dynamic template ID
   mainContainer.querySelectorAll('.kb-preview-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      openKnowledgePreviewModal(btn.getAttribute('data-kb-id'), selectedTemplate.id);
+      openKnowledgePreviewModal(btn.getAttribute('data-kb-id'), state.migrationId);
     });
   });
 
@@ -238,7 +239,7 @@ export async function renderMigrationSetupStage(mainContainer, hitlContainer) {
         sourceSystem,
         targetSystem,
         templateId: selectedTemplate.id,
-        entities: ['Account', 'Position', 'Performance'],
+        entities: ['Clients Households', 'Accounts', 'Positions', 'Fees', 'Billing', 'Transactions', 'Performance'],
         createdBy: state.currentUser || 'Migration Analyst'
       })
     });
